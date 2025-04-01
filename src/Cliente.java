@@ -1,17 +1,33 @@
 import java.io.*;
 import java.net.*;
-import java.util.*;
 
 public class Cliente {
-    public static void main(String[] args) throws IOException {
-        Socket socket = new Socket("localhost", 4000);
-        Scanner scanner = new Scanner(System.in);
+    public static void main(String [] args) {
+        try (Socket socket = new Socket("localhost", 12345);
+             BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+             PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
+             BufferedReader console = new BufferedReader(new InputStreamReader(System.in))) {
 
-        ClienteThread clienteThread = new ClienteThread(socket);
-        clienteThread.start();
-        PrintStream saida = new PrintStream(socket.getOutputStream());
-        System.out.println("Digite uma mensagem para o servidor: ");
-        String teclado = scanner.nextLine();
-        saida.println(teclado);
+            System.out.println("Bem-vindo ao seu drive de arquivos!");
+            System.out.println("Escolha uma opção: \n1 - Login \n2 - Cadastro");
+            String choice = console.readLine();
+
+            String action = choice.equals("1") ? "LOGIN" : "REGISTER";
+
+            System.out.print("Usuário: ");
+            String username = console.readLine();
+            System.out.print("Senha: ");
+            String password = console.readLine();
+
+            out.println(action);
+            out.println(username);
+            out.println(password);
+
+            String response = in.readLine();
+            System.out.println("Resposta do servidor: " + response);
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 }
