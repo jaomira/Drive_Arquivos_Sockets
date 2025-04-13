@@ -26,6 +26,12 @@ public class Cliente {
             String response = in.readLine();
             System.out.println("Resposta do servidor: " + response);
 
+            // Recebe a listagem de arquivos
+            String line;
+            while ((line = in.readLine()) != null && !line.equals("FIM_LISTA")) {
+                System.out.println(line);
+            }
+
         } catch (IOException e) {
             e.printStackTrace();
         }

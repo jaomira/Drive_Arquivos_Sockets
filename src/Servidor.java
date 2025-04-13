@@ -23,14 +23,18 @@ public class Servidor {
                 if ("LOGIN".equals(action)) {
                     if (authenticate(username, password)) {
                         out.println("Login efetuado com sucesso!");
+                        sendFileList(out, username); // <- NOVO
                     } else {
                         out.println("Falha no login. Verifique as credenciais e tente novamente.");
+                        out.println("FIM_LISTA"); // <- para não travar o cliente
                     }
                 } else if ("REGISTER".equals(action)) {
                     if (registerUser(username, password)) {
                         out.println("Registro efetuado com sucesso!");
+                        sendFileList(out, username); // <- NOVO
                     } else {
                         out.println("Falha no registro. Tente novamente.");
+                        out.println("FIM_LISTA");
                     }
                 }
 
@@ -41,7 +45,6 @@ public class Servidor {
         }
     }
 
-    // Autentica usuário verificando o arquivo
     private static boolean authenticate(String user, String pass) {
         List<String[]> users = loadUsers();
         for (String[] credentials : users) {
@@ -55,25 +58,21 @@ public class Servidor {
     private static boolean registerUser(String user, String pass) {
         List<String[]> users = loadUsers();
 
-        // Verifica se o usuário já existe
         for (String[] credentials : users) {
             if (credentials[0].equals(user)) {
                 return false;
             }
         }
 
-        // Adiciona novo usuário e salva no arquivo
         users.add(new String[]{user, pass});
         saveUsers(users);
 
-        // Cria a estrutura de pastas do usuário
         String basePath = "armazenamento/" + user;
         File userFolder = new File(basePath);
         if (!userFolder.exists()) {
-            userFolder.mkdirs(); // cria a pasta do usuário
+            userFolder.mkdirs();
         }
 
-        // Subpastas por tipo de arquivo
         String[] tipos = {"pdf", "txt", "png"};
         for (String tipo : tipos) {
             File subFolder = new File(basePath + "/" + tipo);
@@ -85,7 +84,6 @@ public class Servidor {
         return true;
     }
 
-    // Lê o arquivo e carrega os usuários salvos
     private static List<String[]> loadUsers() {
         List<String[]> users = new ArrayList<>();
         File file = new File(FILE_NAME);
@@ -106,7 +104,6 @@ public class Servidor {
         return users;
     }
 
-    // Salva a lista de usuários no arquivo
     private static void saveUsers(List<String[]> users) {
         try (PrintWriter writer = new PrintWriter(new FileWriter(FILE_NAME))) {
             for (String[] user : users) {
@@ -115,5 +112,33 @@ public class Servidor {
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
+
+//    Exibe os arquivos disponíveis para o usuário
+    private static void sendFileList(PrintWriter out, String username) {
+        String basePath = "armazenamento/" + username;
+        File userFolder = new File(basePath);
+        if (userFolder.exists()) {
+            out.println("Arquivos disponíveis:");
+
+            String[] tipos = {"pdf", "txt", "png"};
+            for (String tipo : tipos) {
+                File subFolder = new File(userFolder, tipo);
+                if (subFolder.exists()) {
+                    out.println("[" + tipo + "]");
+                    File[] files = subFolder.listFiles();
+                    if (files != null && files.length > 0) {
+                        for (File file : files) {
+                            out.println(" - " + file.getName());
+                        }
+                    } else {
+                        out.println(" (vazio)");
+                    }
+                }
+            }
+        } else {
+            out.println("Nenhuma pasta de usuário encontrada.");
+        }
+        out.println("FIM_LISTA");
     }
 }
