@@ -52,20 +52,36 @@ public class Servidor {
         return false;
     }
 
-    // Registra um novo usuário no arquivo
     private static boolean registerUser(String user, String pass) {
         List<String[]> users = loadUsers();
 
-        // Verifica se usuário já existe
+        // Verifica se o usuário já existe
         for (String[] credentials : users) {
             if (credentials[0].equals(user)) {
                 return false;
             }
         }
 
-        // Adiciona o novo usuário e salva no arquivo
+        // Adiciona novo usuário e salva no arquivo
         users.add(new String[]{user, pass});
         saveUsers(users);
+
+        // Cria a estrutura de pastas do usuário
+        String basePath = "armazenamento/" + user;
+        File userFolder = new File(basePath);
+        if (!userFolder.exists()) {
+            userFolder.mkdirs(); // cria a pasta do usuário
+        }
+
+        // Subpastas por tipo de arquivo
+        String[] tipos = {"pdf", "txt", "png"};
+        for (String tipo : tipos) {
+            File subFolder = new File(basePath + "/" + tipo);
+            if (!subFolder.exists()) {
+                subFolder.mkdirs();
+            }
+        }
+
         return true;
     }
 
