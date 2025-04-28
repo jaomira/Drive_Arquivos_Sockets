@@ -16,39 +16,85 @@ public class Servidor {
                 BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
                 PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
 
-                String action = in.readLine(); // LOGIN ou REGISTER
+                // Autenticação do usuário
+                String action = in.readLine();
                 String username = in.readLine();
                 String password = in.readLine();
 
                 if ("LOGIN".equals(action)) {
                     if (authenticate(username, password)) {
                         out.println("Login efetuado com sucesso!");
-                        sendFileList(out, username); // <- NOVO
+                        out.flush();
                     } else {
                         out.println("Falha no login. Verifique as credenciais e tente novamente.");
-                        out.println("FIM_LISTA"); // <- para não travar o cliente
+                        out.flush();
+                        socket.close();
+                        continue;
                     }
                 } else if ("REGISTER".equals(action)) {
                     if (registerUser(username, password)) {
                         out.println("Registro efetuado com sucesso!");
-                        sendFileList(out, username); // <- NOVO
+                        out.flush();
                     } else {
                         out.println("Falha no registro. Tente novamente.");
-                        out.println("FIM_LISTA");
+                        out.flush();
+                        socket.close();
+                        continue;
+                    }
+                } else {
+                    out.println("Ação inválida.");
+                    socket.close();
+                    continue;
+                }
+
+                // Loop de opções
+                boolean conectado = true;
+                while (conectado) {
+                    String opcao = in.readLine();
+                    if (opcao == null) {
+                        conectado = false;
+                        break;
+                    }
+
+                    switch (opcao) {
+                        case "1": // Lista arquivos
+                            sendFileList(out, username);
+                            break;
+
+                        case "2": // Insere arquivo
+                            out.println("OK_UPLOAD");
+                            receiveFile(in, socket.getInputStream(), username, socket);  // Adicione socket como parâmetro
+                            break;
+
+                        case "3": // Baixa arquivo
+                            out.println("OK_DOWNLOAD");
+                            String downloadPasta = in.readLine();
+                            String downloadFile = in.readLine();
+                            sendFile(out, socket.getOutputStream(), username, downloadPasta, downloadFile);
+                            break;
+
+                        case "4": // Sair
+                            out.println("Saindo...");
+                            conectado = false;
+                            break;
+
+                        default:
+                            out.println("Opção inválida. Tente novamente.");
+                            break;
                     }
                 }
 
-                socket.close();
+                System.out.println("Cliente desconectado.");
             }
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
 
-    private static boolean authenticate(String user, String pass) {
+    private static boolean authenticate(String username, String password) {
         List<String[]> users = loadUsers();
         for (String[] credentials : users) {
-            if (credentials[0].equals(user) && credentials[1].equals(pass)) {
+            if (credentials[0].equals(username) && credentials[1].equals(password)) {
                 return true;
             }
         }
@@ -57,16 +103,15 @@ public class Servidor {
 
     private static boolean registerUser(String user, String pass) {
         List<String[]> users = loadUsers();
-
         for (String[] credentials : users) {
             if (credentials[0].equals(user)) {
                 return false;
             }
         }
-
         users.add(new String[]{user, pass});
         saveUsers(users);
 
+        // Cria diretórios
         String basePath = "armazenamento/" + user;
         File userFolder = new File(basePath);
         if (!userFolder.exists()) {
@@ -114,7 +159,6 @@ public class Servidor {
         }
     }
 
-//    Exibe os arquivos disponíveis para o usuário
     private static void sendFileList(PrintWriter out, String username) {
         String basePath = "armazenamento/" + username;
         File userFolder = new File(basePath);
@@ -139,6 +183,63 @@ public class Servidor {
         } else {
             out.println("Nenhuma pasta de usuário encontrada.");
         }
-        out.println("FIM_LISTA");
+        out.println("FIM_LISTA"); // Sinaliza o fim da lista
+    }
+
+    private static void receiveFile(BufferedReader in, InputStream socketIn, String username, Socket socket) throws IOException {
+        String pasta = in.readLine();
+        String fileName = in.readLine();
+        long fileSize = Long.parseLong(in.readLine());
+
+        System.out.println("Recebendo arquivo: " + fileName + " para a pasta " + pasta);
+
+        File userFolder = new File("armazenamento/" + username + "/" + pasta);
+        if (!userFolder.exists()) {
+            userFolder.mkdirs();
+        }
+
+        File outputFile = new File(userFolder, fileName);
+
+        try (BufferedOutputStream fileOut = new BufferedOutputStream(new FileOutputStream(outputFile))) {
+            byte[] buffer = new byte[4096];
+            int bytesRead;
+            long totalRead = 0;
+
+            while (totalRead < fileSize &&
+                    (bytesRead = socketIn.read(buffer, 0, (int) Math.min(buffer.length, fileSize - totalRead))) != -1) {
+                fileOut.write(buffer, 0, bytesRead);
+                totalRead += bytesRead;
+            }
+            fileOut.flush();
+        }
+
+        System.out.println("Arquivo " + fileName + " recebido com sucesso na pasta " + pasta + "!");
+
+        // Envia a confirmação usando o socket
+        PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
+        out.println("UPLOAD_COMPLETO");
+    }
+
+    private static void sendFile(PrintWriter out, OutputStream socketOut, String username, String pasta, String fileName) throws IOException {
+        File file = new File("armazenamento/" + username + "/" + pasta + "/" + fileName);
+
+        if (!file.exists()) {
+            out.println("ERROR");
+            out.println("Arquivo não encontrado.");
+            return;
+        }
+
+        out.println("OK");
+        out.println(file.length()); // Envia o tamanho do arquivo
+
+        try (BufferedInputStream fileIn = new BufferedInputStream(new FileInputStream(file))) {
+            byte[] buffer = new byte[4096];
+            int bytesRead;
+            while ((bytesRead = fileIn.read(buffer)) != -1) {
+                socketOut.write(buffer, 0, bytesRead);
+            }
+            socketOut.flush();
+        }
+        System.out.println("Arquivo " + fileName + " enviado para o cliente.");
     }
 }
